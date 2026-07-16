@@ -53,7 +53,16 @@ jobs:
           path: GamingList-main/target/site/jacoco/
           retention-days: 30
 
-      # 7. Envía métricas del CI a Grafana Cloud
+      # 7. Instala promtool (Prometheus) para enviar métricas via Remote Write (Protobuf+Snappy)
+      - name: Instalar promtool
+        run: |
+          PROM_VERSION="2.54.1"
+          wget -q "https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}/prometheus-${PROM_VERSION}.linux-amd64.tar.gz"
+          tar -xzf "prometheus-${PROM_VERSION}.linux-amd64.tar.gz"
+          sudo mv "prometheus-${PROM_VERSION}.linux-amd64/promtool" /usr/local/bin/
+          promtool --version
+
+      # 8. Envía métricas del CI a Grafana Cloud via promtool (Remote Write)
       - name: Enviar metricas a Grafana Cloud
         if: always()
         env:
@@ -61,10 +70,8 @@ jobs:
           GRAFANA_USER: ${{ secrets.GRAFANA_PROM_USER }}
           GRAFANA_TOKEN: ${{ secrets.GRAFANA_API_TOKEN }}
         run: |
-          # Determinar si el build fue exitoso (1) o fallido (0)
           BUILD_STATUS=$([[ "${{ job.status }}" == "success" ]] && echo 1 || echo 0)
 
-          # Extraer totales de tests desde los reportes XML de Surefire
           TESTS_TOTAL=$(grep -rh 'tests="' GamingList-main/target/surefire-reports/*.xml 2>/dev/null \
             | grep -oP 'tests="\K[0-9]+' | awk '{s+=$1} END {print s+0}')
           TESTS_FAILED=$(grep -rh 'failures="' GamingList-main/target/surefire-reports/*.xml 2>/dev/null \
@@ -75,24 +82,33 @@ jobs:
 
           BRANCH="${{ github.ref_name }}"
 
-          # Construir el payload en formato Prometheus exposition
-          METRICS="# HELP gaminglist_ci_build_success Estado del build (1=exitoso, 0=fallido)
-          # TYPE gaminglist_ci_build_success gauge
-          gaminglist_ci_build_success{branch=\"$BRANCH\",repo=\"GamingList\"} $BUILD_STATUS
-          # HELP gaminglist_ci_tests_total Total de pruebas ejecutadas
-          # TYPE gaminglist_ci_tests_total gauge
-          gaminglist_ci_tests_total{branch=\"$BRANCH\"} $TESTS_TOTAL
-          # HELP gaminglist_ci_tests_passed Pruebas que pasaron
-          # TYPE gaminglist_ci_tests_passed gauge
-          gaminglist_ci_tests_passed{branch=\"$BRANCH\"} $TESTS_PASSED
-          # HELP gaminglist_ci_tests_failed Pruebas que fallaron
-          # TYPE gaminglist_ci_tests_failed gauge
-          gaminglist_ci_tests_failed{branch=\"$BRANCH\"} $TESTS_FAILED"
+          echo "Build status : $BUILD_STATUS"
+          echo "Tests totales: $TESTS_TOTAL | Pasados: $TESTS_PASSED | Fallidos: $TESTS_FAILED"
 
-          # Enviar a Grafana Cloud (pushgateway endpoint)
-          echo "$METRICS" | curl -s --fail \
-            -u "$GRAFANA_USER:$GRAFANA_TOKEN" \
-            --data-binary @- \
-            "${GRAFANA_URL}/push/metrics/job/github-actions/instance/GamingList" \
-            && echo "Metricas enviadas a Grafana Cloud" \
-            || echo "No se pudieron enviar las metricas"
+          # Escribir métricas en formato Prometheus exposition (texto plano sin indentación)
+          printf '# HELP gaminglist_ci_build_success Estado del build (1=exitoso, 0=fallido)\n' > /tmp/ci_metrics.txt
+          printf '# TYPE gaminglist_ci_build_success gauge\n' >> /tmp/ci_metrics.txt
+          printf 'gaminglist_ci_build_success{branch="%s",repo="GamingList"} %s\n' "$BRANCH" "$BUILD_STATUS" >> /tmp/ci_metrics.txt
+          printf '# HELP gaminglist_ci_tests_total Total de pruebas ejecutadas\n' >> /tmp/ci_metrics.txt
+          printf '# TYPE gaminglist_ci_tests_total gauge\n' >> /tmp/ci_metrics.txt
+          printf 'gaminglist_ci_tests_total{branch="%s"} %s\n' "$BRANCH" "$TESTS_TOTAL" >> /tmp/ci_metrics.txt
+          printf '# HELP gaminglist_ci_tests_passed Pruebas que pasaron\n' >> /tmp/ci_metrics.txt
+          printf '# TYPE gaminglist_ci_tests_passed gauge\n' >> /tmp/ci_metrics.txt
+          printf 'gaminglist_ci_tests_passed{branch="%s"} %s\n' "$BRANCH" "$TESTS_PASSED" >> /tmp/ci_metrics.txt
+          printf '# HELP gaminglist_ci_tests_failed Pruebas que fallaron\n' >> /tmp/ci_metrics.txt
+          printf '# TYPE gaminglist_ci_tests_failed gauge\n' >> /tmp/ci_metrics.txt
+          printf 'gaminglist_ci_tests_failed{branch="%s"} %s\n' "$BRANCH" "$TESTS_FAILED" >> /tmp/ci_metrics.txt
+
+          echo "--- Contenido del archivo de metricas ---"
+          cat /tmp/ci_metrics.txt
+
+          # Crear archivo de configuracion HTTP con autenticacion basica para Grafana Cloud
+          printf 'basic_auth:\n  username: "%s"\n  password: "%s"\n' "$GRAFANA_USER" "$GRAFANA_TOKEN" > /tmp/http_config.yml
+
+          echo "--- Enviando a Grafana Cloud con promtool (Remote Write) ---"
+          promtool push metrics \
+            --http.config.file=/tmp/http_config.yml \
+            "${GRAFANA_URL}/api/prom/push" \
+            /tmp/ci_metrics.txt \
+            && echo "Metricas enviadas correctamente a Grafana Cloud" \
+            || echo "Error al enviar metricas - revisa los secrets y la URL"
