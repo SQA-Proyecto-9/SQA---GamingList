@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build y Pruebas Automatizadas
+    name: Build y Pruebas Automatizadas CI/CD
     runs-on: ubuntu-latest
 
     steps:
@@ -36,11 +36,35 @@ jobs:
         working-directory: GamingList-main
 
       # 4. Compila el proyecto y ejecuta todas las pruebas JUnit
+      #    -Dsurefire.useFile=false → imprime la salida de cada prueba directamente
+      #    en el log de consola de Actions (visible en este mismo paso, sin ir a Checks)
       - name: Compilar y ejecutar pruebas
-        run: ./mvnw clean verify
+        run: ./mvnw clean verify -Dsurefire.useFile=false
         working-directory: GamingList-main
 
-      # 5a. Arranca el backend real (JAR compilado) en background
+      # 5. Publica el resultado de las pruebas JUnit en la pestaña Actions
+      #    NOTA: dorny/test-reporter crea una "Check Run" visible en la pestaña Checks
+      #    del PR/commit con el detalle de cada metodo de prueba (verde/rojo).
+      #    Para verlo: Actions → workflow run → pestaña "Checks" o sección "Annotations".
+      - name: Publicar resultados de pruebas JUnit
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Resultados JUnit (Pruebas Unitarias)
+          path: GamingList-main/target/surefire-reports/*.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      # 6. Sube el reporte de cobertura JaCoCo como archivo descargable
+      - name: Subir reporte de cobertura JaCoCo
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reporte-cobertura-jacoco
+          path: GamingList-main/target/site/jacoco/
+          retention-days: 30
+
+      # 7a. Arranca el backend real (JAR ya compilado en el paso 4) en background
       - name: Arrancar Backend Spring Boot (real)
         run: |
           JAR=$(find GamingList-main/target -name "*.jar" ! -name "*plain*" | head -1)
@@ -54,11 +78,11 @@ jobs:
             sleep 3
           done
 
-      # 5b. Instala Newman
+      # 7b. Instala Newman
       - name: Instalar Newman
         run: npm install -g newman
 
-      # 5c. Crea entorno Newman apuntando al backend real (:8080)
+      # 7c. Crea entorno Newman apuntando al backend real (:8080)
       - name: Crear entorno Newman para backend real
         run: |
           mkdir -p reports
@@ -75,49 +99,47 @@ jobs:
           }
           EOF
 
-      # 5d. Ejecuta las pruebas de integracion (TG-01 y TG-03) contra el backend real
+      # 7d. Ejecuta las pruebas de integracion (TG-01 y TG-03) contra el backend real.
+      #     Usa tres reporteros simultaneos:
+      #       cli  → salida legible en el log de Actions (cada request con pass/fail)
+      #       junit → XML compatible con dorny/test-reporter (visualizacion en Checks)
+      #       json  → JSON estructurado del cual extraemos métricas para Grafana
       - name: "Pruebas de Integracion Newman (TG-01 y TG-03) — Backend Real"
         run: |
           newman run "MisPruebas/coleccion_TG.json" \
             -e entorno_real.json \
-            -r cli,junit \
+            -r cli,junit,json \
             --reporter-junit-export "reports/newman-results.xml" \
+            --reporter-json-export  "reports/newman-summary.json" \
             --bail
 
-      # 5e. Publica el reporte de Newman como artefacto descargable
-      - name: Subir reporte Newman
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: reporte-newman-integracion
-          path: reports/newman-results.xml
-          retention-days: 30
-
-      # 5f. (Diagnostico) Muestra el log del backend si algo falla
+      # 7e. (Diagnostico) Muestra el log del backend si algo falla
       - name: Mostrar log del backend si fallo
         if: failure()
         run: cat backend.log || echo "No se encontro backend.log"
 
-      # 5. Publica el resultado de las pruebas en la pestaña Actions
-      - name: Publicar resultados de pruebas JUnit
+      # 7f. Publica el reporte Newman (JUnit XML) en la misma pestaña Checks que JUnit
+      - name: Publicar resultados Newman en Actions
         uses: dorny/test-reporter@v1
         if: always()
         with:
-          name: Resultados JUnit
-          path: GamingList-main/target/surefire-reports/*.xml
+          name: Resultados Newman
+          path: reports/newman-results.xml
           reporter: java-junit
           fail-on-error: false
 
-      # 6. Sube el reporte de cobertura JaCoCo como archivo descargable
-      - name: Subir reporte de cobertura JaCoCo
-        uses: actions/upload-artifact@v4
+      # 7g. Sube ambos reportes Newman como artefactos descargables
+      - name: Subir reportes Newman
         if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: reporte-cobertura-jacoco
-          path: GamingList-main/target/site/jacoco/
+          name: reporte-newman-integracion
+          path: |
+            reports/newman-results.xml
+            reports/newman-summary.json
           retention-days: 30
 
-      # 7. Instala promtool para enviar métricas via Remote Write (Protobuf+Snappy)
+      # 8. Instala promtool para enviar métricas via Remote Write (Protobuf+Snappy)
       - name: Instalar promtool
         run: |
           PROM_VERSION="2.54.1"
@@ -126,7 +148,8 @@ jobs:
           sudo mv "prometheus-${PROM_VERSION}.linux-amd64/promtool" /usr/local/bin/
           promtool --version
 
-      # 8. Envía métricas del CI a Grafana Cloud via promtool (Remote Write)
+      # 9. Envía métricas del CI a Grafana Cloud via promtool (Remote Write)
+      #    Incluye métricas JUnit (unitarias) + Newman (integración) en un solo push
       - name: Enviar metricas a Grafana Cloud
         if: always()
         env:
@@ -136,6 +159,7 @@ jobs:
         run: |
           BUILD_STATUS=$([[ "${{ job.status }}" == "success" ]] && echo 1 || echo 0)
 
+          # ── Métricas JUnit (pruebas unitarias) ────────────────────────────
           TESTS_TOTAL=$(grep -rh 'tests="' GamingList-main/target/surefire-reports/*.xml 2>/dev/null \
             | grep -oP 'tests="\K[0-9]+' | awk '{s+=$1} END {print s+0}')
           TESTS_FAILED=$(grep -rh 'failures="' GamingList-main/target/surefire-reports/*.xml 2>/dev/null \
@@ -144,9 +168,25 @@ jobs:
             | grep -oP 'errors="\K[0-9]+' | awk '{s+=$1} END {print s+0}')
           TESTS_PASSED=$((TESTS_TOTAL - TESTS_FAILED - TESTS_ERRORS))
 
+          # ── Métricas Newman (pruebas de integración) ───────────────────────
+          # Se extrae del JSON generado por --reporter-json-export.
+          # run.stats.requests → requests HTTP ejecutados (uno por endpoint).
+          # run.stats.assertions → total de pm.test() definidos en la coleccion.
+          NEWMAN_REQUESTS_TOTAL=0
+          NEWMAN_REQUESTS_FAILED=0
+          NEWMAN_ASSERTIONS_TOTAL=0
+          NEWMAN_ASSERTIONS_FAILED=0
+          if [ -f "reports/newman-summary.json" ]; then
+            NEWMAN_REQUESTS_TOTAL=$(python3 -c "import json; d=json.load(open('reports/newman-summary.json')); print(d['run']['stats']['requests']['total'])" 2>/dev/null || echo 0)
+            NEWMAN_REQUESTS_FAILED=$(python3 -c "import json; d=json.load(open('reports/newman-summary.json')); print(d['run']['stats']['requests']['failed'])" 2>/dev/null || echo 0)
+            NEWMAN_ASSERTIONS_TOTAL=$(python3 -c "import json; d=json.load(open('reports/newman-summary.json')); print(d['run']['stats']['assertions']['total'])" 2>/dev/null || echo 0)
+            NEWMAN_ASSERTIONS_FAILED=$(python3 -c "import json; d=json.load(open('reports/newman-summary.json')); print(d['run']['stats']['assertions']['failed'])" 2>/dev/null || echo 0)
+          fi
+          NEWMAN_ASSERTIONS_PASSED=$((NEWMAN_ASSERTIONS_TOTAL - NEWMAN_ASSERTIONS_FAILED))
+
           BRANCH="${{ github.ref_name }}"
 
-          # Escribir el script Python en un archivo temporal (evita heredoc en YAML)
+          # ── Cobertura JaCoCo ───────────────────────────────────────────────
           printf 'import xml.etree.ElementTree as ET\n' > /tmp/parse_jacoco.py
           printf 'tree = ET.parse("GamingList-main/target/site/jacoco/jacoco.xml")\n' >> /tmp/parse_jacoco.py
           printf 'root = tree.getroot()\n' >> /tmp/parse_jacoco.py
@@ -161,26 +201,46 @@ jobs:
             COVERAGE=$(python3 /tmp/parse_jacoco.py)
           fi
 
-          echo "Build status : $BUILD_STATUS"
-          echo "Tests totales: $TESTS_TOTAL | Pasados: $TESTS_PASSED | Fallidos: $TESTS_FAILED"
-          echo "Cobertura    : $COVERAGE %"
+          echo "Build status              : $BUILD_STATUS"
+          echo "JUnit — Total: $TESTS_TOTAL | Pasados: $TESTS_PASSED | Fallidos: $TESTS_FAILED"
+          echo "Newman Requests — Total: $NEWMAN_REQUESTS_TOTAL | Fallidos: $NEWMAN_REQUESTS_FAILED"
+          echo "Newman Assertions — Total: $NEWMAN_ASSERTIONS_TOTAL | Pasadas: $NEWMAN_ASSERTIONS_PASSED | Fallidas: $NEWMAN_ASSERTIONS_FAILED"
+          echo "Cobertura                 : $COVERAGE %"
 
-          # Escribir métricas en formato Prometheus exposition
+          # ── Escribir todas las métricas en formato Prometheus exposition ───
           printf '# HELP gaminglist_ci_build_success Estado del build (1=exitoso, 0=fallido)\n' > /tmp/ci_metrics.txt
           printf '# TYPE gaminglist_ci_build_success gauge\n' >> /tmp/ci_metrics.txt
           printf 'gaminglist_ci_build_success{branch="%s",repo="GamingList"} %s\n' "$BRANCH" "$BUILD_STATUS" >> /tmp/ci_metrics.txt
-          printf '# HELP gaminglist_ci_tests_total Total de pruebas ejecutadas\n' >> /tmp/ci_metrics.txt
+
+          printf '# HELP gaminglist_ci_tests_total Total de pruebas unitarias ejecutadas\n' >> /tmp/ci_metrics.txt
           printf '# TYPE gaminglist_ci_tests_total gauge\n' >> /tmp/ci_metrics.txt
           printf 'gaminglist_ci_tests_total{branch="%s"} %s\n' "$BRANCH" "$TESTS_TOTAL" >> /tmp/ci_metrics.txt
-          printf '# HELP gaminglist_ci_tests_passed Pruebas que pasaron\n' >> /tmp/ci_metrics.txt
+          printf '# HELP gaminglist_ci_tests_passed Pruebas unitarias que pasaron\n' >> /tmp/ci_metrics.txt
           printf '# TYPE gaminglist_ci_tests_passed gauge\n' >> /tmp/ci_metrics.txt
           printf 'gaminglist_ci_tests_passed{branch="%s"} %s\n' "$BRANCH" "$TESTS_PASSED" >> /tmp/ci_metrics.txt
-          printf '# HELP gaminglist_ci_tests_failed Pruebas que fallaron\n' >> /tmp/ci_metrics.txt
+          printf '# HELP gaminglist_ci_tests_failed Pruebas unitarias que fallaron\n' >> /tmp/ci_metrics.txt
           printf '# TYPE gaminglist_ci_tests_failed gauge\n' >> /tmp/ci_metrics.txt
           printf 'gaminglist_ci_tests_failed{branch="%s"} %s\n' "$BRANCH" "$TESTS_FAILED" >> /tmp/ci_metrics.txt
+
           printf '# HELP gaminglist_ci_coverage_pct Porcentaje de cobertura de lineas (JaCoCo)\n' >> /tmp/ci_metrics.txt
           printf '# TYPE gaminglist_ci_coverage_pct gauge\n' >> /tmp/ci_metrics.txt
           printf 'gaminglist_ci_coverage_pct{branch="%s"} %s\n' "$BRANCH" "$COVERAGE" >> /tmp/ci_metrics.txt
+
+          printf '# HELP gaminglist_newman_requests_total Total de requests HTTP ejecutados por Newman\n' >> /tmp/ci_metrics.txt
+          printf '# TYPE gaminglist_newman_requests_total gauge\n' >> /tmp/ci_metrics.txt
+          printf 'gaminglist_newman_requests_total{branch="%s"} %s\n' "$BRANCH" "$NEWMAN_REQUESTS_TOTAL" >> /tmp/ci_metrics.txt
+          printf '# HELP gaminglist_newman_requests_failed Requests de Newman que fallaron\n' >> /tmp/ci_metrics.txt
+          printf '# TYPE gaminglist_newman_requests_failed gauge\n' >> /tmp/ci_metrics.txt
+          printf 'gaminglist_newman_requests_failed{branch="%s"} %s\n' "$BRANCH" "$NEWMAN_REQUESTS_FAILED" >> /tmp/ci_metrics.txt
+          printf '# HELP gaminglist_newman_assertions_total Total de aserciones (pm.test) ejecutadas\n' >> /tmp/ci_metrics.txt
+          printf '# TYPE gaminglist_newman_assertions_total gauge\n' >> /tmp/ci_metrics.txt
+          printf 'gaminglist_newman_assertions_total{branch="%s"} %s\n' "$BRANCH" "$NEWMAN_ASSERTIONS_TOTAL" >> /tmp/ci_metrics.txt
+          printf '# HELP gaminglist_newman_assertions_passed Aserciones de Newman que pasaron\n' >> /tmp/ci_metrics.txt
+          printf '# TYPE gaminglist_newman_assertions_passed gauge\n' >> /tmp/ci_metrics.txt
+          printf 'gaminglist_newman_assertions_passed{branch="%s"} %s\n' "$BRANCH" "$NEWMAN_ASSERTIONS_PASSED" >> /tmp/ci_metrics.txt
+          printf '# HELP gaminglist_newman_assertions_failed Aserciones de Newman que fallaron\n' >> /tmp/ci_metrics.txt
+          printf '# TYPE gaminglist_newman_assertions_failed gauge\n' >> /tmp/ci_metrics.txt
+          printf 'gaminglist_newman_assertions_failed{branch="%s"} %s\n' "$BRANCH" "$NEWMAN_ASSERTIONS_FAILED" >> /tmp/ci_metrics.txt
 
           echo "--- Contenido del archivo de metricas ---"
           cat /tmp/ci_metrics.txt
