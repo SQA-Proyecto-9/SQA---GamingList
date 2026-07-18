@@ -1,0 +1,165 @@
+{
+  "info": {
+    "name": "Coleccion_TG",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Set unique identifiers for this run",
+          "if(!pm.environment.get('testRunId')) { pm.environment.set('testRunId', Date.now()); }",
+          "pm.environment.set('username', 'autotest_user_' + pm.environment.get('testRunId'));",
+          "pm.environment.set('password', pm.environment.get('password') || 'Pass123!');",
+          "// unique game id for reviews to avoid collisions",
+          "if(!pm.environment.get('idJuego')) { pm.environment.set('idJuego', Math.floor(Math.random()*1000000)+1000); }"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "TG-01 - Register user",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{username}}\",\n  \"clave\": \"{{password}}\",\n  \"juegos\": []\n}"
+        },
+        "url": "{{baseUrl}}/api/auth/register"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 201', function() { pm.response.to.have.status(201); });",
+              "pm.test('Register returned true', function() { var json = pm.response.json(); pm.expect(json).to.eql(true); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "TG-01 - Login user",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": { "mode": "raw", "raw": "{ \"username\": \"{{username}}\", \"clave\": \"{{password}}\" }" },
+        "url": "{{baseUrl}}/api/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Login returns 200', function() { pm.response.to.have.status(200); });",
+              "pm.test('Response has expected username', function() { var json = pm.response.json(); pm.expect(json.username).to.eql(pm.environment.get('username')); });",
+              "// save user object for later use",
+              "pm.environment.set('lastUser', JSON.stringify(pm.response.json()));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "TG-03 - Add review #1 (5)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \n  \"nomUsuario\": \"{{username}}\",\n  \"mensaje\": \"Primera reseña\",\n  \"calificacion\": 5,\n  \"idJuego\": {{idJuego}}\n}"
+        },
+        "url": "{{baseUrl}}/api/reviews/agregar"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Review1 created (201)', function() { pm.response.to.have.status(201); });",
+              "pm.test('Review1 has correct calificacion', function() { var json = pm.response.json(); pm.expect(json.calificacion).to.eql(5); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "TG-03 - Add review #2 (5)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \n  \"nomUsuario\": \"{{username}}_2\",\n  \"mensaje\": \"Segunda reseña\",\n  \"calificacion\": 5,\n  \"idJuego\": {{idJuego}}\n}"
+        },
+        "url": "{{baseUrl}}/api/reviews/agregar"
+      },
+      "event": [ { "listen": "test", "script": { "exec": [ "pm.test('Review2 created (201)', function() { pm.response.to.have.status(201); });" ], "type": "text/javascript" } } ]
+    },
+    {
+      "name": "TG-03 - Add review #3 (2)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \n  \"nomUsuario\": \"{{username}}_3\",\n  \"mensaje\": \"Tercera reseña\",\n  \"calificacion\": 2,\n  \"idJuego\": {{idJuego}}\n}"
+        },
+        "url": "{{baseUrl}}/api/reviews/agregar"
+      },
+      "event": [ { "listen": "test", "script": { "exec": [ "pm.test('Review3 created (201)', function() { pm.response.to.have.status(201); });" ], "type": "text/javascript" } } ]
+    },
+    {
+      "name": "TG-03 - Check calculated rating",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/reviews/consultar/calificacion/{{idJuego}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Calificacion status 200', function() { pm.response.to.have.status(200); });",
+              "pm.test('Calificacion is 4.0', function() { var cal = parseFloat(pm.response.text()); pm.expect(cal).to.eql(4.0); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "TG-03 - Verify 3 reviews persisted",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/reviews/consultar/{{idJuego}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('List status 200', function() { pm.response.to.have.status(200); });",
+              "pm.test('There are 3 reviews for this game', function() { var list = pm.response.json(); pm.expect(list.length).to.eql(3); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ]
+}

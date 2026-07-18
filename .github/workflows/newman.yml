@@ -1,0 +1,53 @@
+name: Run Postman Newman tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  newman-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Start mock backend
+        working-directory: MisPruebas/mock-backend
+        run: |
+          npm ci
+          nohup npm start > mock.log 2>&1 &
+          for i in {1..30}; do
+            if curl -sSf http://localhost:8085/health >/dev/null 2>&1; then
+              echo "Mock backend is up"; break;
+            fi
+            sleep 2
+          done
+
+      - name: Install newman
+        run: npm install -g newman
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install newman
+        run: npm install -g newman
+
+      - name: Run Newman collection
+        run: |
+          newman run "MisPruebas/coleccion_TG.json" -e "MisPruebas/entorno_TG.json" -r cli,junit --reporter-junit-export "reports/newman-results.xml"
+
+      - name: Upload Newman JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-results
+          path: reports/newman-results.xml

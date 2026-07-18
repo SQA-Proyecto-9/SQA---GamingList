@@ -1,0 +1,20 @@
+[
+  {
+    "nomUsuario": "autotest_user_1784397724814",
+    "mensaje": "Primera reseña",
+    "calificacion": 5,
+    "idJuego": 339032
+  },
+  {
+    "nomUsuario": "autotest_user_1784397724814_2",
+    "mensaje": "Segunda reseña",
+    "calificacion": 5,
+    "idJuego": 339032
+  },
+  {
+    "nomUsuario": "autotest_user_1784397724814_3",
+    "mensaje": "Tercera reseña",
+    "calificacion": 2,
+    "idJuego": 339032
+  }
+]
