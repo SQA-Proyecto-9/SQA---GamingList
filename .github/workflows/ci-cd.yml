@@ -53,7 +53,7 @@ jobs:
           path: GamingList-main/target/site/jacoco/
           retention-days: 30
 
-      # 7. Instala promtool (Prometheus) para enviar métricas via Remote Write (Protobuf+Snappy)
+      # 7. Instala promtool para enviar métricas via Remote Write (Protobuf+Snappy)
       - name: Instalar promtool
         run: |
           PROM_VERSION="2.54.1"
@@ -82,10 +82,26 @@ jobs:
 
           BRANCH="${{ github.ref_name }}"
 
+          # Escribir el script Python en un archivo temporal (evita heredoc en YAML)
+          printf 'import xml.etree.ElementTree as ET\n' > /tmp/parse_jacoco.py
+          printf 'tree = ET.parse("GamingList-main/target/site/jacoco/jacoco.xml")\n' >> /tmp/parse_jacoco.py
+          printf 'root = tree.getroot()\n' >> /tmp/parse_jacoco.py
+          printf 'for c in root.findall("counter"):\n' >> /tmp/parse_jacoco.py
+          printf '    if c.get("type") == "LINE":\n' >> /tmp/parse_jacoco.py
+          printf '        m, v = int(c.get("missed", 0)), int(c.get("covered", 0))\n' >> /tmp/parse_jacoco.py
+          printf '        t = m + v\n' >> /tmp/parse_jacoco.py
+          printf '        print(f"{(v/t*100):.2f}" if t > 0 else "0.00")\n' >> /tmp/parse_jacoco.py
+
+          COVERAGE=0
+          if [ -f "GamingList-main/target/site/jacoco/jacoco.xml" ]; then
+            COVERAGE=$(python3 /tmp/parse_jacoco.py)
+          fi
+
           echo "Build status : $BUILD_STATUS"
           echo "Tests totales: $TESTS_TOTAL | Pasados: $TESTS_PASSED | Fallidos: $TESTS_FAILED"
+          echo "Cobertura    : $COVERAGE %"
 
-          # Escribir métricas en formato Prometheus exposition (texto plano sin indentación)
+          # Escribir métricas en formato Prometheus exposition
           printf '# HELP gaminglist_ci_build_success Estado del build (1=exitoso, 0=fallido)\n' > /tmp/ci_metrics.txt
           printf '# TYPE gaminglist_ci_build_success gauge\n' >> /tmp/ci_metrics.txt
           printf 'gaminglist_ci_build_success{branch="%s",repo="GamingList"} %s\n' "$BRANCH" "$BUILD_STATUS" >> /tmp/ci_metrics.txt
@@ -98,6 +114,9 @@ jobs:
           printf '# HELP gaminglist_ci_tests_failed Pruebas que fallaron\n' >> /tmp/ci_metrics.txt
           printf '# TYPE gaminglist_ci_tests_failed gauge\n' >> /tmp/ci_metrics.txt
           printf 'gaminglist_ci_tests_failed{branch="%s"} %s\n' "$BRANCH" "$TESTS_FAILED" >> /tmp/ci_metrics.txt
+          printf '# HELP gaminglist_ci_coverage_pct Porcentaje de cobertura de lineas (JaCoCo)\n' >> /tmp/ci_metrics.txt
+          printf '# TYPE gaminglist_ci_coverage_pct gauge\n' >> /tmp/ci_metrics.txt
+          printf 'gaminglist_ci_coverage_pct{branch="%s"} %s\n' "$BRANCH" "$COVERAGE" >> /tmp/ci_metrics.txt
 
           echo "--- Contenido del archivo de metricas ---"
           cat /tmp/ci_metrics.txt
@@ -106,9 +125,19 @@ jobs:
           printf 'basic_auth:\n  username: "%s"\n  password: "%s"\n' "$GRAFANA_USER" "$GRAFANA_TOKEN" > /tmp/http_config.yml
 
           echo "--- Enviando a Grafana Cloud con promtool (Remote Write) ---"
-          promtool push metrics \
+          PROMTOOL_OUTPUT=$(promtool push metrics \
             --http.config.file=/tmp/http_config.yml \
             "${GRAFANA_URL}/api/prom/push" \
-            /tmp/ci_metrics.txt \
-            && echo "Metricas enviadas correctamente a Grafana Cloud" \
-            || echo "Error al enviar metricas - revisa los secrets y la URL"
+            /tmp/ci_metrics.txt 2>&1)
+          PROMTOOL_EXIT=$?
+
+          echo "--- Respuesta de Grafana Cloud ---"
+          echo "Codigo de salida promtool: $PROMTOOL_EXIT"
+          echo "Cuerpo de respuesta      : $PROMTOOL_OUTPUT"
+
+          if [ $PROMTOOL_EXIT -eq 0 ]; then
+            echo "Metricas enviadas correctamente a Grafana Cloud"
+          else
+            echo "Error al enviar metricas - revisa los secrets y la URL"
+            exit 0
+          fi

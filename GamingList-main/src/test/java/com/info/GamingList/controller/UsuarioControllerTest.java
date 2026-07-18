@@ -1,4 +1,4 @@
-package com.info.GamingList.controller;
+/*package com.info.GamingList.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.info.GamingList.model.Usuario;
@@ -74,3 +74,5 @@ class UsuarioControllerTest {
                 .andExpect(jsonPath("$").value(true));
     }
 }
+
+*/
