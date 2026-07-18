@@ -24,6 +24,12 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      # 2b. Instala Node.js (necesario para Newman más adelante)
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       # 3. Da permisos de ejecución al wrapper de Maven
       - name: Permisos al wrapper de Maven
         run: chmod +x mvnw
@@ -33,6 +39,64 @@ jobs:
       - name: Compilar y ejecutar pruebas
         run: ./mvnw clean verify
         working-directory: GamingList-main
+
+      # 5a. Arranca el backend real (JAR compilado) en background
+      - name: Arrancar Backend Spring Boot (real)
+        run: |
+          JAR=$(find GamingList-main/target -name "*.jar" ! -name "*plain*" | head -1)
+          echo "Arrancando JAR: $JAR"
+          nohup java -jar "$JAR" > backend.log 2>&1 &
+          echo "Esperando a que el backend levante en :8080..."
+          for i in {1..30}; do
+            if curl -sSf http://localhost:8080/api/videojuegos/consultar > /dev/null 2>&1; then
+              echo "Backend listo en el intento $i"; break;
+            fi
+            sleep 3
+          done
+
+      # 5b. Instala Newman
+      - name: Instalar Newman
+        run: npm install -g newman
+
+      # 5c. Crea entorno Newman apuntando al backend real (:8080)
+      - name: Crear entorno Newman para backend real
+        run: |
+          mkdir -p reports
+          cat > entorno_real.json << 'EOF'
+          {
+            "id": "environ-real",
+            "name": "Entorno Real Backend",
+            "values": [
+              { "key": "baseUrl", "value": "http://localhost:8080", "enabled": true },
+              { "key": "password", "value": "Pass123!", "enabled": true }
+            ],
+            "timestamp": 0,
+            "synced": false
+          }
+          EOF
+
+      # 5d. Ejecuta las pruebas de integracion (TG-01 y TG-03) contra el backend real
+      - name: "Pruebas de Integracion Newman (TG-01 y TG-03) — Backend Real"
+        run: |
+          newman run "MisPruebas/coleccion_TG.json" \
+            -e entorno_real.json \
+            -r cli,junit \
+            --reporter-junit-export "reports/newman-results.xml" \
+            --bail
+
+      # 5e. Publica el reporte de Newman como artefacto descargable
+      - name: Subir reporte Newman
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-newman-integracion
+          path: reports/newman-results.xml
+          retention-days: 30
+
+      # 5f. (Diagnostico) Muestra el log del backend si algo falla
+      - name: Mostrar log del backend si fallo
+        if: failure()
+        run: cat backend.log || echo "No se encontro backend.log"
 
       # 5. Publica el resultado de las pruebas en la pestaña Actions
       - name: Publicar resultados de pruebas JUnit
