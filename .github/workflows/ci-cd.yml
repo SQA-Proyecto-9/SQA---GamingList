@@ -139,7 +139,77 @@ jobs:
             reports/newman-summary.json
           retention-days: 30
 
+      # ── PRUEBAS E2E CON CYPRESS (Sistema y Aceptación) ────────────────────
+      # El backend real ya está corriendo en :8080 desde el paso 7a.
+      # Aqui arrancamos el frontend (Vite) y ejecutamos las pruebas Cypress.
+
+      # 10a. Instalar dependencias del Frontend (Vue + Vite)
+      - name: Instalar dependencias del Frontend (Vue)
+        run: npm ci
+        working-directory: GamingListWeb-main
+
+      # 10b. Arrancar el Frontend (Vite) en background y esperar que levante en :5173
+      - name: Arrancar Frontend (Vite) en background
+        run: |
+          nohup npm run dev > ../frontend.log 2>&1 &
+          echo "Esperando a que el frontend levante en :5173..."
+          for i in {1..20}; do
+            if curl -sSf http://localhost:5173 > /dev/null 2>&1; then
+              echo "Frontend listo en el intento $i"; break;
+            fi
+            sleep 3
+          done
+        working-directory: GamingListWeb-main
+
+      # 10c. Instalar Cypress y mocha-junit-reporter desde el package.json raiz
+      - name: Instalar Cypress
+        run: npm ci
+
+      # 10d. Crear directorio de resultados para el reporte JUnit de Cypress
+      - name: Crear directorio de resultados Cypress
+        run: mkdir -p cypress/results
+
+      # 10e. Ejecutar las 4 pruebas E2E (TB-03, TB-07, TB-10, TS-01) contra el sistema real
+      #      - install: false porque ya instalamos Cypress en el paso 10c
+      #      - El reporter mocha-junit-reporter esta configurado en cypress.config.js
+      #        y genera cypress/results/*.xml + imprime cada test en consola
+      - name: "Pruebas E2E Cypress (Sistema y Aceptacion) — Backend y Frontend Reales"
+        uses: cypress-io/github-action@v6
+        with:
+          install: false
+          browser: chrome
+          headed: false
+        env:
+          CYPRESS_baseUrl: http://localhost:5173
+
+      # 10f. Mostrar logs del frontend si algo falla en Cypress
+      - name: Mostrar log del frontend si fallo
+        if: failure()
+        run: cat frontend.log || echo "No se encontro frontend.log"
+
+      # 10g. Publicar resultados Cypress en pestaña Checks de Actions
+      - name: Publicar resultados Cypress en Actions
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Resultados Cypress (Sistema / Aceptacion)
+          path: cypress/results/*.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      # 10h. Subir videos y screenshots de Cypress como evidencia descargable
+      - name: Subir evidencias de Cypress (videos y screenshots)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-evidencias
+          path: |
+            cypress/videos/
+            cypress/screenshots/
+          retention-days: 30
+
       # 8. Instala promtool para enviar métricas via Remote Write (Protobuf+Snappy)
+
       - name: Instalar promtool
         run: |
           PROM_VERSION="2.54.1"
