@@ -1,0 +1,7 @@
+# Dependencias de Node (Cypress E2E)
+node_modules/
+
+# Artefactos generados por Cypress en ejecuciones locales
+cypress/videos/
+cypress/screenshots/
+cypress/results/
