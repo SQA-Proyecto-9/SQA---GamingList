@@ -148,17 +148,13 @@ jobs:
         run: npm ci
         working-directory: GamingListWeb-main
 
-      # 10b. Arrancar el Frontend (Vite) en background y esperar que levante en :5173
+      # 10b. Arrancar el Frontend (Vite) en background.
+      #      --host 0.0.0.0 fuerza a Vite a escuchar en TODAS las interfaces de red
+      #      (IPv4 e IPv6), evitando que Chrome no pueda conectar desde una interfaz distinta.
+      #      No se necesita un curl de espera aqui porque wait-on en la action de Cypress
+      #      (paso 10e) es mas robusto: espera hasta recibir un HTTP 200 completo.
       - name: Arrancar Frontend (Vite) en background
-        run: |
-          nohup npm run dev > ../frontend.log 2>&1 &
-          echo "Esperando a que el frontend levante en :5173..."
-          for i in {1..20}; do
-            if curl -sSf http://localhost:5173 > /dev/null 2>&1; then
-              echo "Frontend listo en el intento $i"; break;
-            fi
-            sleep 3
-          done
+        run: nohup npm run dev -- --host 0.0.0.0 > ../frontend.log 2>&1 &
         working-directory: GamingListWeb-main
 
       # 10c. Instalar Cypress y mocha-junit-reporter desde el package.json raiz
@@ -170,15 +166,19 @@ jobs:
         run: mkdir -p cypress/results
 
       # 10e. Ejecutar las 4 pruebas E2E (TB-03, TB-07, TB-10, TS-01) contra el sistema real
-      #      - install: false porque ya instalamos Cypress en el paso 10c
+      #      - install: false  → Cypress ya instalado en paso 10c
+      #      - wait-on        → La action espera hasta que Vite devuelva HTTP 200 completo
+      #                         antes de lanzar el primer test (mas fiable que curl manual)
+      #      - wait-on-timeout → 2 minutos maximo de espera por el frontend
       #      - El reporter mocha-junit-reporter esta configurado en cypress.config.js
-      #        y genera cypress/results/*.xml + imprime cada test en consola
       - name: "Pruebas E2E Cypress (Sistema y Aceptacion) — Backend y Frontend Reales"
         uses: cypress-io/github-action@v6
         with:
           install: false
           browser: chrome
           headed: false
+          wait-on: 'http://localhost:5173'
+          wait-on-timeout: 120
         env:
           CYPRESS_baseUrl: http://localhost:5173
 
