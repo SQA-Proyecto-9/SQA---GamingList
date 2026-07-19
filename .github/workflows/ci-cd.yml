@@ -173,6 +173,9 @@ jobs:
       #      - El reporter mocha-junit-reporter esta configurado en cypress.config.js
       - name: "Pruebas E2E Cypress (Sistema y Aceptacion) — Backend y Frontend Reales"
         uses: cypress-io/github-action@v6
+        # continue-on-error: true → Los fallos de prueba (esperados, detectan bugs del software)
+        # NO bloquean los pasos siguientes. El pipeline sigue hasta Grafana y reportes.
+        continue-on-error: true
         with:
           install: false
           browser: chrome
@@ -191,6 +194,9 @@ jobs:
       - name: Publicar resultados Cypress en Actions
         uses: dorny/test-reporter@v1
         if: always()
+        # continue-on-error: true → Si cypress/results/*.xml no existe (fallo catastrofico
+        # de Cypress antes de generar reportes), dorny no bloquea el paso de Grafana.
+        continue-on-error: true
         with:
           name: Resultados Cypress (Sistema / Aceptacion)
           path: cypress/results/*.xml
