@@ -283,6 +283,50 @@ jobs:
           echo "Newman Assertions — Total: $NEWMAN_ASSERTIONS_TOTAL | Pasadas: $NEWMAN_ASSERTIONS_PASSED | Fallidas: $NEWMAN_ASSERTIONS_FAILED"
           echo "Cobertura                 : $COVERAGE %"
 
+          # ── Build verde vs rojo (via GitHub Actions API) ───────────
+          RUN_DATA=$(curl -s \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}")
+
+          CONCLUSION=$(echo "$RUN_DATA" | jq -r '.conclusion // "in_progress"')
+          WORKFLOW_NAME=$(echo "$RUN_DATA" | jq -r '.name // "unknown"')
+          ACTOR=$(echo "$RUN_DATA" | jq -r '.triggering_actor.login // .actor.login // "unknown"')
+          CREATED_AT=$(echo "$RUN_DATA" | jq -r '.created_at // ""')
+          UPDATED_AT=$(echo "$RUN_DATA" | jq -r '.updated_at // ""')
+          BUILD_RESULT=$([[ "$CONCLUSION" == "success" ]] && echo 1 || echo 0)
+
+          echo "Conclusion API            : $CONCLUSION"
+          echo "Workflow                  : $WORKFLOW_NAME"
+          echo "Actor                     : $ACTOR"
+          echo "Created at                : $CREATED_AT"
+          echo "Updated at                : $UPDATED_AT"
+
+          # ── Tiempo de ejecución (via GitHub Actions API) ──────────
+          JOBS_DATA=$(curl -s \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs")
+
+          JOB_NAME=$(echo "$JOBS_DATA" | jq -r '.jobs[0].name // "build-and-test"')
+          JOB_STARTED=$(echo "$JOBS_DATA" | jq -r '.jobs[0].started_at // ""')
+          JOB_COMPLETED=$(echo "$JOBS_DATA" | jq -r '.jobs[0].completed_at // ""')
+
+          STARTED_EPOCH=0
+          COMPLETED_EPOCH=$(date +%s)
+          if [ -n "$JOB_STARTED" ] && [ "$JOB_STARTED" != "null" ]; then
+            STARTED_EPOCH=$(date -d "$JOB_STARTED" +%s 2>/dev/null || echo 0)
+          fi
+          if [ -n "$JOB_COMPLETED" ] && [ "$JOB_COMPLETED" != "null" ] && [ "$JOB_COMPLETED" != "" ]; then
+            COMPLETED_EPOCH=$(date -d "$JOB_COMPLETED" +%s 2>/dev/null || echo "$COMPLETED_EPOCH")
+          fi
+          DURATION_SECONDS=$((COMPLETED_EPOCH - STARTED_EPOCH))
+
+          echo "Job                       : $JOB_NAME"
+          echo "Started at                : $JOB_STARTED"
+          echo "Completed at              : $JOB_COMPLETED (o tiempo actual si no disponible)"
+          echo "Duracion segundos         : $DURATION_SECONDS"
+
           # ── Escribir todas las métricas en formato Prometheus exposition ───
           printf '# HELP gaminglist_ci_build_success Estado del build (1=exitoso, 0=fallido)\n' > /tmp/ci_metrics.txt
           printf '# TYPE gaminglist_ci_build_success gauge\n' >> /tmp/ci_metrics.txt
@@ -317,6 +361,16 @@ jobs:
           printf '# HELP gaminglist_newman_assertions_failed Aserciones de Newman que fallaron\n' >> /tmp/ci_metrics.txt
           printf '# TYPE gaminglist_newman_assertions_failed gauge\n' >> /tmp/ci_metrics.txt
           printf 'gaminglist_newman_assertions_failed{branch="%s"} %s\n' "$BRANCH" "$NEWMAN_ASSERTIONS_FAILED" >> /tmp/ci_metrics.txt
+
+          printf '# HELP gaminglist_ci_build_result Resultado del build (1=exito, 0=fallo/cancelado)\n' >> /tmp/ci_metrics.txt
+          printf '# TYPE gaminglist_ci_build_result gauge\n' >> /tmp/ci_metrics.txt
+          printf 'gaminglist_ci_build_result{run_id="%s",conclusion="%s",workflow="%s",branch="%s",actor="%s"} %s\n' \
+            "${{ github.run_id }}" "$CONCLUSION" "$WORKFLOW_NAME" "$BRANCH" "$ACTOR" "$BUILD_RESULT" >> /tmp/ci_metrics.txt
+
+          printf '# HELP gaminglist_ci_duration_seconds Duracion del pipeline en segundos\n' >> /tmp/ci_metrics.txt
+          printf '# TYPE gaminglist_ci_duration_seconds gauge\n' >> /tmp/ci_metrics.txt
+          printf 'gaminglist_ci_duration_seconds{run_id="%s",job_name="%s",branch="%s"} %s\n' \
+            "${{ github.run_id }}" "$JOB_NAME" "$BRANCH" "$DURATION_SECONDS" >> /tmp/ci_metrics.txt
 
           echo "--- Contenido del archivo de metricas ---"
           cat /tmp/ci_metrics.txt
