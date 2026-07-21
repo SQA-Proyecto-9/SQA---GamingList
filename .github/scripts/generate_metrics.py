@@ -107,10 +107,8 @@ try:
     for filepath in glob.glob('GamingList-main/src/test/java/**/*.java', recursive=True):
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
-            for match in re.finditer(r'@Tag\("([^"]+)"\)\s*(?:@\w+\s*)*void\s+(\w+)', content):
-                tag = match.group(1)
-                method = match.group(2)
-                method_tags[method] = tag
+            for match in re.finditer(r'@Tag\("([^"]+)"\)[\s\S]*?void\s+(\w+)', content):
+                method_tags[match.group(2)] = match.group(1)
 except Exception as e:
     print(f"# Error processing JUnit Java files: {e}")
 
