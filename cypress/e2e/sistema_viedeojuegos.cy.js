@@ -34,6 +34,9 @@ describe('Pruebas de Sistema y Aceptación - Plataforma de Videojuegos', () => {
 
     // Validar que la UI redirigió fuera de /login
     cy.url().should('not.include', '/login');
+
+    // Captura de pantalla para evidencia de la prueba exitosa
+    cy.screenshot('RF-02_Login_Exitoso');
   });
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -51,6 +54,9 @@ describe('Pruebas de Sistema y Aceptación - Plataforma de Videojuegos', () => {
     cy.get('.lista-juegos .juego')
       .should('exist')
       .and('have.length.greaterThan', 0);
+      
+    // Captura de pantalla para evidencia
+    cy.screenshot('RF-03_Catalogo_Cargado');
     });
 
   });
@@ -77,6 +83,9 @@ describe('Pruebas de Sistema y Aceptación - Plataforma de Videojuegos', () => {
 
     // Verificar el cambio de estado en la UI
     cy.contains('Ya has agregado').should('exist');
+
+    // Captura de pantalla para evidencia
+    cy.screenshot('RF-05_Juego_Agregado');
   });
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -108,6 +117,9 @@ describe('Pruebas de Sistema y Aceptación - Plataforma de Videojuegos', () => {
         expect(juegoEnLista.estatus, 'El estatus debe ser 4 (Finalizado)').to.equal(4);
       },
     );
+    
+    // Captura de pantalla para evidencia de persistencia
+    cy.screenshot('RF-05_Persistencia_Estatus');
     });
   });
 

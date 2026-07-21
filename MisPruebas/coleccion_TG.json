@@ -24,6 +24,7 @@
   "item": [
     {
       "name": "TG-01 [RF-01, RF-02] - Register user",
+      "description": "Prueba de Integración: Simula el registro de un usuario nuevo generado dinámicamente. Verifica que la API devuelva un código 201 (Creado) indicando éxito en el registro.",
       "request": {
         "method": "POST",
         "header": [
@@ -50,6 +51,7 @@
     },
     {
       "name": "TG-01 [RF-01, RF-02] - Login user",
+      "description": "Prueba de Integración: Inicia sesión con el usuario recién registrado en la prueba anterior. Comprueba que el código de estado sea 200 y que los datos del usuario coincidan con lo esperado.",
       "request": {
         "method": "POST",
         "header": [ { "key": "Content-Type", "value": "application/json" } ],
@@ -73,6 +75,7 @@
     },
     {
       "name": "TG-03 [RF-06] - Add review #1 (5)",
+      "description": "Prueba de Integración: Agrega una primera reseña a un videojuego con una calificación máxima de 5. Verifica el código 201 y que la calificación se guardó correctamente.",
       "request": {
         "method": "POST",
         "header": [ { "key": "Content-Type", "value": "application/json" } ],
@@ -97,6 +100,7 @@
     },
     {
       "name": "TG-03 [RF-06] - Add review #2 (5)",
+      "description": "Prueba de Integración: Agrega una segunda reseña al mismo juego por parte de un usuario distinto, con otra calificación de 5. Verifica el éxito de la inserción.",
       "request": {
         "method": "POST",
         "header": [ { "key": "Content-Type", "value": "application/json" } ],
@@ -110,6 +114,7 @@
     },
     {
       "name": "TG-03 [RF-06] - Add review #3 (2)",
+      "description": "Prueba de Integración: Agrega una tercera reseña con una calificación baja (2). El objetivo es acumular diferentes puntuaciones para luego validar el cálculo del promedio general del juego.",
       "request": {
         "method": "POST",
         "header": [ { "key": "Content-Type", "value": "application/json" } ],
@@ -123,6 +128,7 @@
     },
     {
       "name": "TG-03 [RF-06] - Check calculated rating",
+      "description": "Prueba de Integración: Consulta la calificación global del videojuego tras recibir las 3 reseñas. Verifica de forma automatizada que el backend calcule correctamente el promedio matemático exacto (5 + 5 + 2) / 3 = 4.0.",
       "request": {
         "method": "GET",
         "header": [],
@@ -143,6 +149,7 @@
     },
     {
       "name": "TG-03 [RF-06] - Verify 3 reviews persisted",
+      "description": "Prueba de Integración: Solicita el listado de todas las reseñas de este videojuego y verifica que la longitud del arreglo devuelto sea exactamente 3, asegurando la persistencia en base de datos.",
       "request": {
         "method": "GET",
         "header": [],

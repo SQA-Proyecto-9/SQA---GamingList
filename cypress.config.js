@@ -2,6 +2,7 @@ const { defineConfig } = require("cypress");
 
 module.exports = defineConfig({
   allowCypressEnv: false,
+  video: true,
 
   // Genera reporte JUnit XML para integracion con dorny/test-reporter en Actions,
   // y Mochawesome JSON para las métricas de Prometheus.
