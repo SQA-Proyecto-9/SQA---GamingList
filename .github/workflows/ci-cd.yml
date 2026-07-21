@@ -372,6 +372,9 @@ jobs:
           printf 'gaminglist_ci_duration_seconds{run_id="%s",job_name="%s",branch="%s"} %s\n' \
             "${{ github.run_id }}" "$JOB_NAME" "$BRANCH" "$DURATION_SECONDS" >> /tmp/ci_metrics.txt
 
+          # Ejecutar script para parsear métricas de Cypress y densidad por RF
+          python3 .github/scripts/generate_metrics.py >> /tmp/ci_metrics.txt
+
           echo "--- Contenido del archivo de metricas ---"
           cat /tmp/ci_metrics.txt
 

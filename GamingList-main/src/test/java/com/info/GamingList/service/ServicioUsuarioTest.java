@@ -3,6 +3,7 @@ package com.info.GamingList.service;
 import com.info.GamingList.model.Usuario;
 import com.info.GamingList.repository.RepositorioUsuario;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -27,6 +28,7 @@ class ServicioUsuarioTest {
     }
 
     @Test
+    @Tag("RF-02")
     void testValidarUsuarioExitoso() {
         Usuario mockUsuario = new Usuario(new ArrayList<>(), "testuser", "password123");
         when(repositorioUsuario.obtenerPorUsername("testuser")).thenReturn(mockUsuario);
@@ -38,6 +40,7 @@ class ServicioUsuarioTest {
     }
 
     @Test
+    @Tag("RF-02")
     void testValidarUsuarioFallido() {
         Usuario mockUsuario = new Usuario(new ArrayList<>(), "testuser", "password123");
         when(repositorioUsuario.obtenerPorUsername("testuser")).thenReturn(mockUsuario);
@@ -48,6 +51,7 @@ class ServicioUsuarioTest {
     }
 
     @Test
+    @Tag("RF-01")
     void testRegistrarUsuarioExitoso() {
         Usuario usuario = new Usuario(new ArrayList<>(), "newuser", "pass");
         when(repositorioUsuario.obtenerPorUsername("newuser")).thenReturn(null);
@@ -59,6 +63,7 @@ class ServicioUsuarioTest {
     }
 
     @Test
+    @Tag("RF-01")
     void testRegistrarUsuarioExistente() {
         Usuario usuario = new Usuario(new ArrayList<>(), "existinguser", "pass");
         when(repositorioUsuario.obtenerPorUsername("existinguser")).thenReturn(usuario);

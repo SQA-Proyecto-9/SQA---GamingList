@@ -3,6 +3,7 @@ package com.info.GamingList.service;
 import com.info.GamingList.model.Review;
 import com.info.GamingList.repository.RepositorioReview;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -29,6 +30,7 @@ class ServicioReviewTest {
     }
 
     @Test
+    @Tag("RF-06")
     void testCalcularCalificacionJuego() {
         Review r1 = new Review();
         r1.setCalificacion(4);
@@ -43,6 +45,7 @@ class ServicioReviewTest {
     }
 
     @Test
+    @Tag("RF-06")
     void testCalcularCalificacionJuegoSinReviews() {
         when(repositorioReview.obtenerPorId(1)).thenReturn(new ArrayList<>());
 
@@ -52,6 +55,7 @@ class ServicioReviewTest {
     }
 
     @Test
+    @Tag("RF-06")
     void testAgregarReview() {
         Review review = new Review();
         review.setMensaje("Genial");

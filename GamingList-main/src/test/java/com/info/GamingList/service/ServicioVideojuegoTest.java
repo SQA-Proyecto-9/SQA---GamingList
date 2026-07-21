@@ -3,6 +3,7 @@ package com.info.GamingList.service;
 import com.info.GamingList.model.Videojuego;
 import com.info.GamingList.repository.RepositorioVideojuego;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -29,6 +30,7 @@ class ServicioVideojuegoTest {
     }
 
     @Test
+    @Tag("RF-03")
     void testObtenerVideojuegos() {
         List<Videojuego> mockVideojuegos = new ArrayList<>();
         mockVideojuegos.add(new Videojuego(1, "Elden Ring", "Action RPG", "Sinopsis", 2022, new ArrayList<>()));
@@ -43,6 +45,7 @@ class ServicioVideojuegoTest {
     }
 
     @Test
+    @Tag("RF-04")
     void testObtenerVideojuegoPorId() {
         Videojuego mockVideojuego = new Videojuego(1, "Elden Ring", "Action RPG", "Sinopsis", 2022, new ArrayList<>());
         
@@ -56,6 +59,7 @@ class ServicioVideojuegoTest {
     }
 
     @Test
+    @Tag("RF-03")
     void testAgregarJuegoExitoso() throws Exception {
         Videojuego videojuego = new Videojuego(1, "Persona 5", "JRPG", "Sinopsis", 2016, new ArrayList<>());
         
@@ -69,6 +73,7 @@ class ServicioVideojuegoTest {
     }
 
     @Test
+    @Tag("RF-03")
     void testAgregarJuegoExistenteLanzaExcepcion() {
         Videojuego videojuego = new Videojuego(1, "Persona 5", "JRPG", "Sinopsis", 2016, new ArrayList<>());
         
@@ -81,6 +86,7 @@ class ServicioVideojuegoTest {
     }
 
     @Test
+    @Tag("RF-03")
     void testCalcularIdSiguiente() {
         List<Videojuego> mockVideojuegos = Arrays.asList(
                 new Videojuego(1, "Juego 1", "", "", 2020, new ArrayList<>()),

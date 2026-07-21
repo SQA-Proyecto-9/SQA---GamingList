@@ -18,7 +18,8 @@ describe('Pruebas de Sistema y Aceptación - Plataforma de Videojuegos', () => {
   // ──────────────────────────────────────────────────────────────────────────
   // TB-03: Login Exitoso (Prueba de Aceptacion)
   // ──────────────────────────────────────────────────────────────────────────
-  it('TB-03: Login Exitoso', () => {
+  describe('Suite de Aceptación', () => {
+    it('TB-03 [RF-02]: Login Exitoso', () => {
     // Monitorear la llamada real al backend SIN interceptar (sin stub).
     // cy.intercept sin reply deja pasar la peticion al servidor real.
     cy.intercept('POST', '**/api/auth/login').as('loginRequest');
@@ -38,7 +39,7 @@ describe('Pruebas de Sistema y Aceptación - Plataforma de Videojuegos', () => {
   // ──────────────────────────────────────────────────────────────────────────
   // TB-07: Listado de Catálogo (Prueba de Aceptacion)
   // ──────────────────────────────────────────────────────────────────────────
-  it('TB-07: Listado de Catálogo', () => {
+    it('TB-07 [RF-03]: Listado de Catálogo', () => {
     // Monitorear la llamada al catalogo sin stub
     cy.intercept('GET', '**/api/videojuegos/consultar').as('getCatalogo');
 
@@ -52,10 +53,14 @@ describe('Pruebas de Sistema y Aceptación - Plataforma de Videojuegos', () => {
       .and('have.length.greaterThan', 0);
   });
 
+    });
+  });
+
+  describe('Suite de Sistema', () => {
   // ──────────────────────────────────────────────────────────────────────────
   // TB-10: Agregar a Lista Personal (Prueba de Sistema)
   // ──────────────────────────────────────────────────────────────────────────
-  it('TB-10: Agregar a Lista Personal', () => {
+    it('TB-10 [RF-05]: Agregar a Lista Personal', () => {
     // Monitorear sin stub — el backend real procesa y persiste en usuarios.json
     cy.intercept('POST', '**/api/auth/agregar/**').as('agregarJuego');
 
@@ -79,7 +84,7 @@ describe('Pruebas de Sistema y Aceptación - Plataforma de Videojuegos', () => {
   // TS-01: Persistencia de Estatus en Perfil (Prueba de Sistema E2E)
   // Depende de TB-10: el juego debe estar en la lista del usuario.
   // ──────────────────────────────────────────────────────────────────────────
-  it('TS-01: Persistencia de Estatus en Perfil (Sistema E2E)', () => {
+    it('TS-01 [RF-05]: Persistencia de Estatus en Perfil (Sistema E2E)', () => {
     // Monitorear la PUT real al backend sin stub
     cy.intercept('PUT', '**/api/auth/modificar/**').as('actualizarEstatus');
 
@@ -104,6 +109,7 @@ describe('Pruebas de Sistema y Aceptación - Plataforma de Videojuegos', () => {
         expect(juegoEnLista.estatus, 'El estatus debe ser 4 (Finalizado)').to.equal(4);
       },
     );
+    });
   });
 
 });

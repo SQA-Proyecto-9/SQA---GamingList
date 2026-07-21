@@ -1,0 +1,108 @@
+import json
+import glob
+import re
+import xml.etree.ElementTree as ET
+import os
+
+branch = os.environ.get('BRANCH', 'main')
+
+rf_metrics = {}
+
+def get_rf_metric(rf):
+    if rf not in rf_metrics:
+        rf_metrics[rf] = {'total': 0, 'failed': 0}
+    return rf_metrics[rf]
+
+def add_rf_result(rf, passed, failed):
+    m = get_rf_metric(rf)
+    m['total'] += passed + failed
+    m['failed'] += failed
+
+# 1. CYPRESS METRICS
+cypress_json_path = 'cypress/results/mochawesome.json'
+try:
+    with open(cypress_json_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+        for suite in data.get('results', []):
+            for sub_suite in suite.get('suites', []):
+                suite_name = sub_suite.get('title', '').lower()
+                suite_key = 'sistema' if 'sistema' in suite_name else ('aceptacion' if 'aceptaci' in suite_name else 'unknown')
+                
+                total = 0
+                passed = 0
+                failed = 0
+                for test in sub_suite.get('tests', []):
+                    total += 1
+                    if test.get('pass'): passed += 1
+                    if test.get('fail'): failed += 1
+                    
+                    # Extract RF
+                    match = re.search(r'\[(RF-\d+)\]', test.get('title', ''))
+                    if match:
+                        add_rf_result(match.group(1), 1 if test.get('pass') else 0, 1 if test.get('fail') else 0)
+                
+                if suite_key != 'unknown':
+                    print(f'# HELP gaminglist_cypress_tests_total Total Cypress tests for {suite_key}')
+                    print(f'# TYPE gaminglist_cypress_tests_total gauge')
+                    print(f'gaminglist_cypress_tests_total{{branch="{branch}",suite="{suite_key}"}} {total}')
+                    print(f'# HELP gaminglist_cypress_tests_passed Passed Cypress tests for {suite_key}')
+                    print(f'# TYPE gaminglist_cypress_tests_passed gauge')
+                    print(f'gaminglist_cypress_tests_passed{{branch="{branch}",suite="{suite_key}"}} {passed}')
+except Exception as e:
+    print(f"# Error processing Cypress metrics: {e}")
+
+# 2. NEWMAN METRICS
+newman_json_path = 'reports/newman-summary.json'
+try:
+    with open(newman_json_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+        for execution in data.get('run', {}).get('executions', []):
+            item_name = execution.get('item', {}).get('name', '')
+            assertions = execution.get('assertions', [])
+            failed_assertions = [a for a in assertions if 'error' in a]
+            
+            matches = re.findall(r'RF-\d+', item_name)
+            is_fail = len(failed_assertions) > 0
+            for rf in matches:
+                add_rf_result(rf, 0 if is_fail else 1, 1 if is_fail else 0)
+except Exception as e:
+    print(f"# Error processing Newman metrics: {e}")
+
+# 3. JUNIT METRICS
+method_tags = {}
+try:
+    for filepath in glob.glob('GamingList-main/src/test/java/**/*.java', recursive=True):
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+            for match in re.finditer(r'@Tag\("([^"]+)"\)\s*(?:@\w+\s*)*void\s+(\w+)', content):
+                tag = match.group(1)
+                method = match.group(2)
+                method_tags[method] = tag
+except Exception as e:
+    print(f"# Error processing JUnit Java files: {e}")
+
+try:
+    for xml_path in glob.glob('GamingList-main/target/surefire-reports/*.xml'):
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        for testcase in root.findall('testcase'):
+            method_name = testcase.get('name')
+            if method_name in method_tags:
+                rf = method_tags[method_name]
+                failures = testcase.findall('failure')
+                errors = testcase.findall('error')
+                is_fail = len(failures) > 0 or len(errors) > 0
+                add_rf_result(rf, 0 if is_fail else 1, 1 if is_fail else 0)
+except Exception as e:
+    print(f"# Error processing JUnit XML files: {e}")
+
+# OUTPUT RF METRICS
+if len(rf_metrics) > 0:
+    print(f'# HELP gaminglist_tests_by_rf_total Total tests per RF')
+    print(f'# TYPE gaminglist_tests_by_rf_total gauge')
+    print(f'# HELP gaminglist_tests_by_rf_failed Failed tests per RF')
+    print(f'# TYPE gaminglist_tests_by_rf_failed gauge')
+
+for rf, counts in rf_metrics.items():
+    print(f'gaminglist_tests_by_rf_total{{branch="{branch}",rf="{rf}"}} {counts["total"]}')
+    print(f'gaminglist_tests_by_rf_failed{{branch="{branch}",rf="{rf}"}} {counts["failed"]}')

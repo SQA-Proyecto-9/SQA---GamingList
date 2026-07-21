@@ -3,12 +3,21 @@ const { defineConfig } = require("cypress");
 module.exports = defineConfig({
   allowCypressEnv: false,
 
-  // Genera reporte JUnit XML para integracion con dorny/test-reporter en Actions.
-  // toConsole: true imprime cada test en el log de consola del pipeline mientras corre.
-  reporter: 'mocha-junit-reporter',
+  // Genera reporte JUnit XML para integracion con dorny/test-reporter en Actions,
+  // y Mochawesome JSON para las métricas de Prometheus.
+  reporter: 'cypress-multi-reporters',
   reporterOptions: {
-    mochaFile: 'cypress/results/[hash].xml',
-    toConsole: true,
+    reporterEnabled: 'mocha-junit-reporter, mochawesome',
+    mochaJunitReporterReporterOptions: {
+      mochaFile: 'cypress/results/[hash].xml',
+      toConsole: true,
+    },
+    mochawesomeReporterOptions: {
+      reportDir: 'cypress/results',
+      overwrite: false,
+      html: false,
+      json: true,
+    },
   },
 
   e2e: {
