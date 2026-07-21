@@ -377,13 +377,11 @@ jobs:
 
           printf '# HELP gaminglist_ci_build_result Resultado del build (1=exito, 0=fallo/cancelado)\n' >> /tmp/ci_metrics.txt
           printf '# TYPE gaminglist_ci_build_result gauge\n' >> /tmp/ci_metrics.txt
-          printf 'gaminglist_ci_build_result{run_id="%s",conclusion="%s",workflow="%s",branch="%s",actor="%s"} %s\n' \
-            "${{ github.run_id }}" "$CONCLUSION" "$WORKFLOW_NAME" "$BRANCH" "$ACTOR" "$BUILD_RESULT" >> /tmp/ci_metrics.txt
+          printf 'gaminglist_ci_build_result{branch="%s"} %s\n' "$BRANCH" "$BUILD_RESULT" >> /tmp/ci_metrics.txt
 
           printf '# HELP gaminglist_ci_duration_seconds Duracion del pipeline en segundos\n' >> /tmp/ci_metrics.txt
           printf '# TYPE gaminglist_ci_duration_seconds gauge\n' >> /tmp/ci_metrics.txt
-          printf 'gaminglist_ci_duration_seconds{run_id="%s",job_name="%s",branch="%s"} %s\n' \
-            "${{ github.run_id }}" "$JOB_NAME" "$BRANCH" "$DURATION_SECONDS" >> /tmp/ci_metrics.txt
+          printf 'gaminglist_ci_duration_seconds{branch="%s"} %s\n' "$BRANCH" "$DURATION_SECONDS" >> /tmp/ci_metrics.txt
 
           # Ejecutar script para parsear métricas de Cypress y densidad por RF
           python3 .github/scripts/generate_metrics.py >> /tmp/ci_metrics.txt

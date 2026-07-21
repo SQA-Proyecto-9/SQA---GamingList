@@ -20,34 +20,44 @@ def add_rf_result(rf, passed, failed):
 
 # 1. CYPRESS METRICS
 cypress_json_path = 'cypress/results/mochawesome.json'
+
+def process_cypress_suite(suite_obj):
+    suite_name = suite_obj.get('title', '').lower()
+    suite_key = 'sistema' if 'suite de sistema' in suite_name else ('aceptacion' if 'suite de aceptaci' in suite_name else 'unknown')
+    
+    total = 0
+    passed = 0
+    failed = 0
+    
+    # Process tests in this suite
+    for test in suite_obj.get('tests', []):
+        total += 1
+        if test.get('pass'): passed += 1
+        if test.get('fail'): failed += 1
+        
+        # Extract RF
+        match = re.search(r'\[(RF-\d+)\]', test.get('title', ''))
+        if match:
+            add_rf_result(match.group(1), 1 if test.get('pass') else 0, 1 if test.get('fail') else 0)
+    
+    # Only print suite metrics if this is one of our target suites and it has tests
+    if suite_key != 'unknown' and total > 0:
+        print(f'# HELP gaminglist_cypress_tests_total Total Cypress tests for {suite_key}')
+        print(f'# TYPE gaminglist_cypress_tests_total gauge')
+        print(f'gaminglist_cypress_tests_total{{branch="{branch}",suite="{suite_key}"}} {total}')
+        print(f'# HELP gaminglist_cypress_tests_passed Passed Cypress tests for {suite_key}')
+        print(f'# TYPE gaminglist_cypress_tests_passed gauge')
+        print(f'gaminglist_cypress_tests_passed{{branch="{branch}",suite="{suite_key}"}} {passed}')
+        
+    # Recurse into sub-suites
+    for sub in suite_obj.get('suites', []):
+        process_cypress_suite(sub)
+
 try:
     with open(cypress_json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
         for suite in data.get('results', []):
-            for sub_suite in suite.get('suites', []):
-                suite_name = sub_suite.get('title', '').lower()
-                suite_key = 'sistema' if 'sistema' in suite_name else ('aceptacion' if 'aceptaci' in suite_name else 'unknown')
-                
-                total = 0
-                passed = 0
-                failed = 0
-                for test in sub_suite.get('tests', []):
-                    total += 1
-                    if test.get('pass'): passed += 1
-                    if test.get('fail'): failed += 1
-                    
-                    # Extract RF
-                    match = re.search(r'\[(RF-\d+)\]', test.get('title', ''))
-                    if match:
-                        add_rf_result(match.group(1), 1 if test.get('pass') else 0, 1 if test.get('fail') else 0)
-                
-                if suite_key != 'unknown':
-                    print(f'# HELP gaminglist_cypress_tests_total Total Cypress tests for {suite_key}')
-                    print(f'# TYPE gaminglist_cypress_tests_total gauge')
-                    print(f'gaminglist_cypress_tests_total{{branch="{branch}",suite="{suite_key}"}} {total}')
-                    print(f'# HELP gaminglist_cypress_tests_passed Passed Cypress tests for {suite_key}')
-                    print(f'# TYPE gaminglist_cypress_tests_passed gauge')
-                    print(f'gaminglist_cypress_tests_passed{{branch="{branch}",suite="{suite_key}"}} {passed}')
+            process_cypress_suite(suite)
 except Exception as e:
     print(f"# Error processing Cypress metrics: {e}")
 
