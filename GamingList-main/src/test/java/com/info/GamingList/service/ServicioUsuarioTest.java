@@ -29,6 +29,7 @@ class ServicioUsuarioTest {
 
     @Test
     @Tag("RF-02")
+    //Simula que existe un usuario con username y contraseña correctos.
     void testValidarUsuarioExitoso() {
         Usuario mockUsuario = new Usuario(new ArrayList<>(), "testuser", "password123");
         when(repositorioUsuario.obtenerPorUsername("testuser")).thenReturn(mockUsuario);
@@ -41,6 +42,10 @@ class ServicioUsuarioTest {
 
     @Test
     @Tag("RF-02")
+    /*
+    Simula una contraseña incorrecta.
+    Verifica que el servicio retorne null.
+    */
     void testValidarUsuarioFallido() {
         Usuario mockUsuario = new Usuario(new ArrayList<>(), "testuser", "password123");
         when(repositorioUsuario.obtenerPorUsername("testuser")).thenReturn(mockUsuario);
@@ -52,6 +57,10 @@ class ServicioUsuarioTest {
 
     @Test
     @Tag("RF-01")
+    /**
+     * Simula un usuario nuevo.
+    Verifica que se registre correctamente.
+     */
     void testRegistrarUsuarioExitoso() {
         Usuario usuario = new Usuario(new ArrayList<>(), "newuser", "pass");
         when(repositorioUsuario.obtenerPorUsername("newuser")).thenReturn(null);
@@ -64,6 +73,10 @@ class ServicioUsuarioTest {
 
     @Test
     @Tag("RF-01")
+    /**
+     * Simula que el usuario ya existe.
+        Verifica que no se vuelva a registrar.
+     */
     void testRegistrarUsuarioExistente() {
         Usuario usuario = new Usuario(new ArrayList<>(), "existinguser", "pass");
         when(repositorioUsuario.obtenerPorUsername("existinguser")).thenReturn(usuario);

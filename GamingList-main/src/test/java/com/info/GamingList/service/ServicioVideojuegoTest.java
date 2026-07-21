@@ -31,6 +31,7 @@ class ServicioVideojuegoTest {
 
     @Test
     @Tag("RF-03")
+    /* Simula una lista de videojuegos y  Verifica que el servicio la devuelva correctamente. */
     void testObtenerVideojuegos() {
         List<Videojuego> mockVideojuegos = new ArrayList<>();
         mockVideojuegos.add(new Videojuego(1, "Elden Ring", "Action RPG", "Sinopsis", 2022, new ArrayList<>()));
@@ -46,6 +47,7 @@ class ServicioVideojuegoTest {
 
     @Test
     @Tag("RF-04")
+    // Simula la búsqueda por ID. Verifica que el videojuego correcto sea retornado.
     void testObtenerVideojuegoPorId() {
         Videojuego mockVideojuego = new Videojuego(1, "Elden Ring", "Action RPG", "Sinopsis", 2022, new ArrayList<>());
         
@@ -60,6 +62,7 @@ class ServicioVideojuegoTest {
 
     @Test
     @Tag("RF-03")
+    //Simula agregar un juego nuevo. Verifica que se guarde.
     void testAgregarJuegoExitoso() throws Exception {
         Videojuego videojuego = new Videojuego(1, "Persona 5", "JRPG", "Sinopsis", 2016, new ArrayList<>());
         
@@ -74,6 +77,7 @@ class ServicioVideojuegoTest {
 
     @Test
     @Tag("RF-03")
+    //Simula que el juego ya existe. Verifica que el servicio lance una excepción.
     void testAgregarJuegoExistenteLanzaExcepcion() {
         Videojuego videojuego = new Videojuego(1, "Persona 5", "JRPG", "Sinopsis", 2016, new ArrayList<>());
         
@@ -87,6 +91,7 @@ class ServicioVideojuegoTest {
 
     @Test
     @Tag("RF-03")
+    //Simula una lista de videojuegos con IDs. Verifica que el siguiente ID se calcule correctamente.
     void testCalcularIdSiguiente() {
         List<Videojuego> mockVideojuegos = Arrays.asList(
                 new Videojuego(1, "Juego 1", "", "", 2020, new ArrayList<>()),

@@ -31,6 +31,10 @@ class ServicioReviewTest {
 
     @Test
     @Tag("RF-06")
+    
+    /* Simula dos reseñas con calificaciones 4 y 5.
+    Verifica que el servicio calcula el promedio correcto: 4.5. */
+
     void testCalcularCalificacionJuego() {
         Review r1 = new Review();
         r1.setCalificacion(4);
@@ -46,6 +50,10 @@ class ServicioReviewTest {
 
     @Test
     @Tag("RF-06")
+    /*
+    Simula que no hay reseñas.
+    Espera que el promedio sea 0.0.
+     */
     void testCalcularCalificacionJuegoSinReviews() {
         when(repositorioReview.obtenerPorId(1)).thenReturn(new ArrayList<>());
 
@@ -56,6 +64,10 @@ class ServicioReviewTest {
 
     @Test
     @Tag("RF-06")
+    /**
+     * Crea una reseña nueva.
+        Verifica que se llame al repositorio para guardarla.
+     */
     void testAgregarReview() {
         Review review = new Review();
         review.setMensaje("Genial");
