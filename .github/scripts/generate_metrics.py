@@ -21,6 +21,8 @@ def add_rf_result(rf, passed, failed):
 # 1. CYPRESS METRICS
 cypress_json_path = 'cypress/results/mochawesome.json'
 cypress_results = {}
+unique_cypress_sistema = set()
+unique_cypress_aceptacion = set()
 
 def process_cypress_suite(suite_obj):
     suite_name = suite_obj.get('title', '').lower()
@@ -40,6 +42,14 @@ def process_cypress_suite(suite_obj):
         match = re.search(r'\[(RF-\d+)\]', test.get('title', ''))
         if match:
             add_rf_result(match.group(1), 1 if test.get('pass') else 0, 1 if test.get('fail') else 0)
+            
+        # Extract Test Case ID for Cypress (TB-XX or TS-XX)
+        tc_match = re.search(r'(T[BS]-\d+)', test.get('title', ''))
+        if tc_match:
+            if suite_key == 'sistema':
+                unique_cypress_sistema.add(tc_match.group(1))
+            elif suite_key == 'aceptacion':
+                unique_cypress_aceptacion.add(tc_match.group(1))
     
     # Only store suite metrics if this is one of our target suites and it has tests
     if suite_key != 'unknown' and total > 0:
@@ -70,6 +80,7 @@ except Exception as e:
 
 # 2. NEWMAN METRICS
 newman_json_path = 'reports/newman-summary.json'
+unique_newman_tc = set()
 try:
     with open(newman_json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
@@ -82,11 +93,16 @@ try:
             is_fail = len(failed_assertions) > 0
             for rf in matches:
                 add_rf_result(rf, 0 if is_fail else 1, 1 if is_fail else 0)
+                
+            tc_match = re.search(r'(TG-\d+)', item_name)
+            if tc_match:
+                unique_newman_tc.add(tc_match.group(1))
 except Exception as e:
     print(f"# Error processing Newman metrics: {e}")
 
 # 3. JUNIT METRICS
 method_tags = {}
+unique_junit_tc = set()
 try:
     for filepath in glob.glob('GamingList-main/src/test/java/**/*.java', recursive=True):
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -110,6 +126,7 @@ try:
                 errors = testcase.findall('error')
                 is_fail = len(failures) > 0 or len(errors) > 0
                 add_rf_result(rf, 0 if is_fail else 1, 1 if is_fail else 0)
+                unique_junit_tc.add(method_name)
 except Exception as e:
     print(f"# Error processing JUnit XML files: {e}")
 
@@ -124,3 +141,11 @@ if len(rf_metrics) > 0:
     print(f'# TYPE gaminglist_tests_by_rf_failed gauge')
     for rf, counts in rf_metrics.items():
         print(f'gaminglist_tests_by_rf_failed{{branch="{branch}",rf="{rf}"}} {counts["failed"]}')
+
+# OUTPUT TEST CASES COVERAGE METRICS
+print(f'# HELP gaminglist_executed_test_cases_total Total number of unique test cases executed')
+print(f'# TYPE gaminglist_executed_test_cases_total gauge')
+print(f'gaminglist_executed_test_cases_total{{branch="{branch}",type="unit"}} {len(unique_junit_tc)}')
+print(f'gaminglist_executed_test_cases_total{{branch="{branch}",type="integration"}} {len(unique_newman_tc)}')
+print(f'gaminglist_executed_test_cases_total{{branch="{branch}",type="system"}} {len(unique_cypress_sistema)}')
+print(f'gaminglist_executed_test_cases_total{{branch="{branch}",type="acceptance"}} {len(unique_cypress_aceptacion)}')
