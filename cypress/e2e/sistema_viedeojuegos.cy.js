@@ -51,9 +51,8 @@ describe('Pruebas de Sistema y Aceptación - Plataforma de Videojuegos', () => {
     cy.get('.lista-juegos .juego')
       .should('exist')
       .and('have.length.greaterThan', 0);
-  });
-
     });
+
   });
 
   describe('Suite de Sistema', () => {
@@ -112,4 +111,4 @@ describe('Pruebas de Sistema y Aceptación - Plataforma de Videojuegos', () => {
     });
   });
 
-});
+});
