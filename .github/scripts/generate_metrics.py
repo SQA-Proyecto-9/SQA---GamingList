@@ -20,6 +20,7 @@ def add_rf_result(rf, passed, failed):
 
 # 1. CYPRESS METRICS
 cypress_json_path = 'cypress/results/mochawesome.json'
+cypress_results = {}
 
 def process_cypress_suite(suite_obj):
     suite_name = suite_obj.get('title', '').lower()
@@ -40,14 +41,9 @@ def process_cypress_suite(suite_obj):
         if match:
             add_rf_result(match.group(1), 1 if test.get('pass') else 0, 1 if test.get('fail') else 0)
     
-    # Only print suite metrics if this is one of our target suites and it has tests
+    # Only store suite metrics if this is one of our target suites and it has tests
     if suite_key != 'unknown' and total > 0:
-        print(f'# HELP gaminglist_cypress_tests_total Total Cypress tests for {suite_key}')
-        print(f'# TYPE gaminglist_cypress_tests_total gauge')
-        print(f'gaminglist_cypress_tests_total{{branch="{branch}",suite="{suite_key}"}} {total}')
-        print(f'# HELP gaminglist_cypress_tests_passed Passed Cypress tests for {suite_key}')
-        print(f'# TYPE gaminglist_cypress_tests_passed gauge')
-        print(f'gaminglist_cypress_tests_passed{{branch="{branch}",suite="{suite_key}"}} {passed}')
+        cypress_results[suite_key] = {'total': total, 'passed': passed}
         
     # Recurse into sub-suites
     for sub in suite_obj.get('suites', []):
@@ -58,6 +54,17 @@ try:
         data = json.load(f)
         for suite in data.get('results', []):
             process_cypress_suite(suite)
+            
+    if cypress_results:
+        print(f'# HELP gaminglist_cypress_tests_total Total Cypress tests')
+        print(f'# TYPE gaminglist_cypress_tests_total gauge')
+        for suite_key, counts in cypress_results.items():
+            print(f'gaminglist_cypress_tests_total{{branch="{branch}",suite="{suite_key}"}} {counts["total"]}')
+            
+        print(f'# HELP gaminglist_cypress_tests_passed Passed Cypress tests')
+        print(f'# TYPE gaminglist_cypress_tests_passed gauge')
+        for suite_key, counts in cypress_results.items():
+            print(f'gaminglist_cypress_tests_passed{{branch="{branch}",suite="{suite_key}"}} {counts["passed"]}')
 except Exception as e:
     print(f"# Error processing Cypress metrics: {e}")
 
@@ -110,9 +117,10 @@ except Exception as e:
 if len(rf_metrics) > 0:
     print(f'# HELP gaminglist_tests_by_rf_total Total tests per RF')
     print(f'# TYPE gaminglist_tests_by_rf_total gauge')
+    for rf, counts in rf_metrics.items():
+        print(f'gaminglist_tests_by_rf_total{{branch="{branch}",rf="{rf}"}} {counts["total"]}')
+
     print(f'# HELP gaminglist_tests_by_rf_failed Failed tests per RF')
     print(f'# TYPE gaminglist_tests_by_rf_failed gauge')
-
-for rf, counts in rf_metrics.items():
-    print(f'gaminglist_tests_by_rf_total{{branch="{branch}",rf="{rf}"}} {counts["total"]}')
-    print(f'gaminglist_tests_by_rf_failed{{branch="{branch}",rf="{rf}"}} {counts["failed"]}')
+    for rf, counts in rf_metrics.items():
+        print(f'gaminglist_tests_by_rf_failed{{branch="{branch}",rf="{rf}"}} {counts["failed"]}')
