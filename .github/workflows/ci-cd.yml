@@ -24,7 +24,7 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # 2b. Instala Node.js (necesario para Newman más adelante)
+      # 2b. Instala Node.js
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
@@ -165,12 +165,11 @@ jobs:
       - name: Crear directorio de resultados Cypress
         run: mkdir -p cypress/results
 
-      # 10e. Ejecutar las 4 pruebas E2E (TB-03, TB-07, TB-10, TS-01) contra el sistema real
+      # 10e. Ejecutar las pruebas E2E contra el sistema real
       #      - install: false  → Cypress ya instalado en paso 10c
       #      - wait-on        → La action espera hasta que Vite devuelva HTTP 200 completo
-      #                         antes de lanzar el primer test (mas fiable que curl manual)
+      #                         antes de lanzar el primer test
       #      - wait-on-timeout → 2 minutos maximo de espera por el frontend
-      #      - El reporter mocha-junit-reporter esta configurado en cypress.config.js
       - name: "Pruebas E2E Cypress (Sistema y Aceptacion) — Backend y Frontend Reales"
         uses: cypress-io/github-action@v6
         # continue-on-error: true → Los fallos de prueba (esperados, detectan bugs del software)
